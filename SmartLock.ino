@@ -97,12 +97,12 @@ void BLEinit()
     pCharacteristicRFID->addDescriptor(new BLE2902());
 
     pCharacteristicCamera = pService->createCharacteristic(
-        CHARACTERISTIC_UUID_TX,
+        CHARACTERISTIC_UUID_RX_CAMERA,
         BLECharacteristic::PROPERTY_NOTIFY);
     pCharacteristicCamera->addDescriptor(new BLE2902());
 
     BLECharacteristic *pCharacteristic = pService->createCharacteristic(
-        CHARACTERISTIC_UUID_RX_CAMERA,
+        CHARACTERISTIC_UUID_TX,
         BLECharacteristic::PROPERTY_WRITE);
 
     pCharacteristic->setCallbacks(new MyCallbacks());
