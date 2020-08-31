@@ -124,7 +124,7 @@ void cameraInit()
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK)
     {
-        Serial2.printf("Camera init failed with error 0x%x", err);
+        DEBUG.printf("Camera init failed with error 0x%x", err);
         return;
     }
     cameraSetting();
@@ -176,42 +176,42 @@ void fingerInit()
 
     if (finger.verifyPassword())
     {
-        Serial2.println("Found fingerprint sensor!");
+        DEBUG.println("Found fingerprint sensor!");
     }
     else
     {
-        Serial2.println("Did not find fingerprint sensor :(");
+        DEBUG.println("Did not find fingerprint sensor :(");
     }
 
-    Serial2.println(F("Reading sensor parameters"));
+    DEBUG.println(F("Reading sensor parameters"));
     finger.getParameters();
-    Serial2.print(F("Status: 0x"));
-    Serial2.println(finger.status_reg, HEX);
-    Serial2.print(F("Sys ID: 0x"));
-    Serial2.println(finger.system_id, HEX);
-    Serial2.print(F("Capacity: "));
-    Serial2.println(finger.capacity);
-    Serial2.print(F("Security level: "));
-    Serial2.println(finger.security_level);
-    Serial2.print(F("Device address: "));
-    Serial2.println(finger.device_addr, HEX);
-    Serial2.print(F("Packet len: "));
-    Serial2.println(finger.packet_len);
-    Serial2.print(F("Baud rate: "));
-    Serial2.println(finger.baud_rate);
+    DEBUG.print(F("Status: 0x"));
+    DEBUG.println(finger.status_reg, HEX);
+    DEBUG.print(F("Sys ID: 0x"));
+    DEBUG.println(finger.system_id, HEX);
+    DEBUG.print(F("Capacity: "));
+    DEBUG.println(finger.capacity);
+    DEBUG.print(F("Security level: "));
+    DEBUG.println(finger.security_level);
+    DEBUG.print(F("Device address: "));
+    DEBUG.println(finger.device_addr, HEX);
+    DEBUG.print(F("Packet len: "));
+    DEBUG.println(finger.packet_len);
+    DEBUG.print(F("Baud rate: "));
+    DEBUG.println(finger.baud_rate);
 
     finger.getTemplateCount();
 
     if (finger.templateCount == 0)
     {
-        Serial2.print("Sensor doesn't contain any fingerprint data. Please run the 'enroll' example.");
+        DEBUG.print("Sensor doesn't contain any fingerprint data. Please run the 'enroll' example.");
     }
     else
     {
-        Serial2.println("Waiting for valid finger...");
-        Serial2.print("Sensor contains ");
-        Serial2.print(finger.templateCount);
-        Serial2.println(" templates");
+        DEBUG.println("Waiting for valid finger...");
+        DEBUG.print("Sensor contains ");
+        DEBUG.print(finger.templateCount);
+        DEBUG.println(" templates");
     }
 }
 
@@ -222,8 +222,8 @@ void setup()
     BLEinit();
     pinMode(BUTTON, INPUT_PULLUP);
     pinMode(FLASH, OUTPUT);
-    Serial2.begin(115200, SERIAL_8N1, -1, 33);
-    Serial2.println();
+    DEBUG.begin(115200, SERIAL_8N1, -1, 33);
+    DEBUG.println();
     cameraInit();
     fingerInit();
     SPI.begin(HSPI_SCLK, HSPI_MISO, HSPI_MOSI);
@@ -239,8 +239,8 @@ void loop()
     if (rfid != "")
     {
         rfid = String("{RFID: \"" + rfid + "\"}");
-        Serial2.print("RFID: ");
-        Serial2.println(rfid);
+        DEBUG.print("RFID: ");
+        DEBUG.println(rfid);
         pCharacteristicRFID->setValue(rfid.c_str());
         pCharacteristicRFID->notify();
     }
@@ -249,8 +249,8 @@ void loop()
     {
         String fingerIdStr = String(fingerId);
         fingerIdStr = String("{FINGER: \"" + fingerIdStr + "\"}");
-        Serial2.print("FINGER: ");
-        Serial2.println(fingerIdStr);
+        DEBUG.print("FINGER: ");
+        DEBUG.println(fingerIdStr);
         pCharacteristicFingerprint->setValue(fingerIdStr.c_str());
         pCharacteristicFingerprint->notify();
     }
@@ -261,7 +261,7 @@ void loop()
         int i = 0;
         int id = random(1000, 10000);
         // imgBase64 = String("{CAMERA: \"" + imgBase64 + "\"}");
-        Serial2.println(imgBase64);
+        DEBUG.println(imgBase64);
         
         while (imgBase64.length() > 0)
         {
@@ -269,7 +269,7 @@ void loop()
             imgBase64.remove(0, 400);
             
             img32 = String("{CAMERA: \"" + img32 + "\", SEQ: " + i++ + ", ID: " + id + "}");
-            Serial2.println(img32);
+            DEBUG.println(img32);
             pCharacteristicCamera->setValue(img32.c_str());
             pCharacteristicCamera->notify();
         }
@@ -283,7 +283,7 @@ String capture()
     fb = esp_camera_fb_get();
     if (!fb)
     {
-        Serial2.println("Camera capture failed");
+        DEBUG.println("Camera capture failed");
         return "";
     }
     else
@@ -322,19 +322,19 @@ uint8_t getFingerprintID()
     switch (p)
     {
     case FINGERPRINT_OK:
-        Serial2.println("Image taken");
+        DEBUG.println("Image taken");
         break;
     case FINGERPRINT_NOFINGER:
-        Serial2.println("No finger detected");
+        DEBUG.println("No finger detected");
         return p;
     case FINGERPRINT_PACKETRECIEVEERR:
-        Serial2.println("Communication error");
+        DEBUG.println("Communication error");
         return p;
     case FINGERPRINT_IMAGEFAIL:
-        Serial2.println("Imaging error");
+        DEBUG.println("Imaging error");
         return p;
     default:
-        Serial2.println("Unknown error");
+        DEBUG.println("Unknown error");
         return p;
     }
 
@@ -344,22 +344,22 @@ uint8_t getFingerprintID()
     switch (p)
     {
     case FINGERPRINT_OK:
-        Serial2.println("Image converted");
+        DEBUG.println("Image converted");
         break;
     case FINGERPRINT_IMAGEMESS:
-        Serial2.println("Image too messy");
+        DEBUG.println("Image too messy");
         return p;
     case FINGERPRINT_PACKETRECIEVEERR:
-        Serial2.println("Communication error");
+        DEBUG.println("Communication error");
         return p;
     case FINGERPRINT_FEATUREFAIL:
-        Serial2.println("Could not find fingerprint features");
+        DEBUG.println("Could not find fingerprint features");
         return p;
     case FINGERPRINT_INVALIDIMAGE:
-        Serial2.println("Could not find fingerprint features");
+        DEBUG.println("Could not find fingerprint features");
         return p;
     default:
-        Serial2.println("Unknown error");
+        DEBUG.println("Unknown error");
         return p;
     }
 
@@ -367,29 +367,29 @@ uint8_t getFingerprintID()
     p = finger.fingerSearch();
     if (p == FINGERPRINT_OK)
     {
-        Serial2.println("Found a print match!");
+        DEBUG.println("Found a print match!");
     }
     else if (p == FINGERPRINT_PACKETRECIEVEERR)
     {
-        Serial2.println("Communication error");
+        DEBUG.println("Communication error");
         return p;
     }
     else if (p == FINGERPRINT_NOTFOUND)
     {
-        Serial2.println("Did not find a match");
+        DEBUG.println("Did not find a match");
         return p;
     }
     else
     {
-        Serial2.println("Unknown error");
+        DEBUG.println("Unknown error");
         return p;
     }
 
     // found a match!
-    Serial2.print("Found ID #");
-    Serial2.print(finger.fingerID);
-    Serial2.print(" with confidence of ");
-    Serial2.println(finger.confidence);
+    DEBUG.print("Found ID #");
+    DEBUG.print(finger.fingerID);
+    DEBUG.print(" with confidence of ");
+    DEBUG.println(finger.confidence);
 
     return finger.fingerID;
 }
@@ -410,10 +410,10 @@ int getFingerprintIDez()
         return -1;
 
     // found a match!
-    Serial2.print("Found ID #");
-    Serial2.print(finger.fingerID);
-    Serial2.print(" with confidence of ");
-    Serial2.println(finger.confidence);
+    DEBUG.print("Found ID #");
+    DEBUG.print(finger.fingerID);
+    DEBUG.print(" with confidence of ");
+    DEBUG.println(finger.confidence);
     return finger.fingerID;
 }
 
@@ -421,27 +421,27 @@ uint8_t getFingerprintEnroll(uint8_t id)
 {
 
     int p = -1;
-    Serial2.print("Waiting for valid finger to enroll as #");
-    Serial2.println(id);
+    DEBUG.print("Waiting for valid finger to enroll as #");
+    DEBUG.println(id);
     while (p != FINGERPRINT_OK)
     {
         p = finger.getImage();
         switch (p)
         {
         case FINGERPRINT_OK:
-            Serial2.println("Image taken");
+            DEBUG.println("Image taken");
             break;
         case FINGERPRINT_NOFINGER:
-            Serial2.println(".");
+            DEBUG.println(".");
             break;
         case FINGERPRINT_PACKETRECIEVEERR:
-            Serial2.println("Communication error");
+            DEBUG.println("Communication error");
             break;
         case FINGERPRINT_IMAGEFAIL:
-            Serial2.println("Imaging error");
+            DEBUG.println("Imaging error");
             break;
         default:
-            Serial2.println("Unknown error");
+            DEBUG.println("Unknown error");
             break;
         }
     }
@@ -452,55 +452,55 @@ uint8_t getFingerprintEnroll(uint8_t id)
     switch (p)
     {
     case FINGERPRINT_OK:
-        Serial2.println("Image converted");
+        DEBUG.println("Image converted");
         break;
     case FINGERPRINT_IMAGEMESS:
-        Serial2.println("Image too messy");
+        DEBUG.println("Image too messy");
         return p;
     case FINGERPRINT_PACKETRECIEVEERR:
-        Serial2.println("Communication error");
+        DEBUG.println("Communication error");
         return p;
     case FINGERPRINT_FEATUREFAIL:
-        Serial2.println("Could not find fingerprint features");
+        DEBUG.println("Could not find fingerprint features");
         return p;
     case FINGERPRINT_INVALIDIMAGE:
-        Serial2.println("Could not find fingerprint features");
+        DEBUG.println("Could not find fingerprint features");
         return p;
     default:
-        Serial2.println("Unknown error");
+        DEBUG.println("Unknown error");
         return p;
     }
 
-    Serial2.println("Remove finger");
+    DEBUG.println("Remove finger");
     delay(2000);
     p = 0;
     while (p != FINGERPRINT_NOFINGER)
     {
         p = finger.getImage();
     }
-    Serial2.print("ID ");
-    Serial2.println(id);
+    DEBUG.print("ID ");
+    DEBUG.println(id);
     p = -1;
-    Serial2.println("Place same finger again");
+    DEBUG.println("Place same finger again");
     while (p != FINGERPRINT_OK)
     {
         p = finger.getImage();
         switch (p)
         {
         case FINGERPRINT_OK:
-            Serial2.println("Image taken");
+            DEBUG.println("Image taken");
             break;
         case FINGERPRINT_NOFINGER:
-            Serial2.print(".");
+            DEBUG.print(".");
             break;
         case FINGERPRINT_PACKETRECIEVEERR:
-            Serial2.println("Communication error");
+            DEBUG.println("Communication error");
             break;
         case FINGERPRINT_IMAGEFAIL:
-            Serial2.println("Imaging error");
+            DEBUG.println("Imaging error");
             break;
         default:
-            Serial2.println("Unknown error");
+            DEBUG.println("Unknown error");
             break;
         }
     }
@@ -511,75 +511,75 @@ uint8_t getFingerprintEnroll(uint8_t id)
     switch (p)
     {
     case FINGERPRINT_OK:
-        Serial2.println("Image converted");
+        DEBUG.println("Image converted");
         break;
     case FINGERPRINT_IMAGEMESS:
-        Serial2.println("Image too messy");
+        DEBUG.println("Image too messy");
         return p;
     case FINGERPRINT_PACKETRECIEVEERR:
-        Serial2.println("Communication error");
+        DEBUG.println("Communication error");
         return p;
     case FINGERPRINT_FEATUREFAIL:
-        Serial2.println("Could not find fingerprint features");
+        DEBUG.println("Could not find fingerprint features");
         return p;
     case FINGERPRINT_INVALIDIMAGE:
-        Serial2.println("Could not find fingerprint features");
+        DEBUG.println("Could not find fingerprint features");
         return p;
     default:
-        Serial2.println("Unknown error");
+        DEBUG.println("Unknown error");
         return p;
     }
 
     // OK converted!
-    Serial2.print("Creating model for #");
-    Serial2.println(id);
+    DEBUG.print("Creating model for #");
+    DEBUG.println(id);
 
     p = finger.createModel();
     if (p == FINGERPRINT_OK)
     {
-        Serial2.println("Prints matched!");
+        DEBUG.println("Prints matched!");
     }
     else if (p == FINGERPRINT_PACKETRECIEVEERR)
     {
-        Serial2.println("Communication error");
+        DEBUG.println("Communication error");
         return p;
     }
     else if (p == FINGERPRINT_ENROLLMISMATCH)
     {
-        Serial2.println("Fingerprints did not match");
+        DEBUG.println("Fingerprints did not match");
         return p;
     }
     else
     {
-        Serial2.println("Unknown error");
+        DEBUG.println("Unknown error");
         return p;
     }
 
-    Serial2.print("ID ");
-    Serial2.println(id);
+    DEBUG.print("ID ");
+    DEBUG.println(id);
     p = finger.storeModel(id);
     if (p == FINGERPRINT_OK)
     {
-        Serial2.println("Stored!");
+        DEBUG.println("Stored!");
     }
     else if (p == FINGERPRINT_PACKETRECIEVEERR)
     {
-        Serial2.println("Communication error");
+        DEBUG.println("Communication error");
         return p;
     }
     else if (p == FINGERPRINT_BADLOCATION)
     {
-        Serial2.println("Could not store in that location");
+        DEBUG.println("Could not store in that location");
         return p;
     }
     else if (p == FINGERPRINT_FLASHERR)
     {
-        Serial2.println("Error writing to flash");
+        DEBUG.println("Error writing to flash");
         return p;
     }
     else
     {
-        Serial2.println("Unknown error");
+        DEBUG.println("Unknown error");
         return p;
     }
 

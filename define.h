@@ -7,6 +7,7 @@
 
 #define CAMERA_MODEL_M5STACK_NO_PSRAM
 #define mySerial Serial
+#define DEBUG    Serial2
 
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
