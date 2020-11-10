@@ -29,6 +29,7 @@
 
 #define BUTTON            2
 #define FLASH             4
+#define BUZZER            4
 
 #define RST_PIN   33
 #define HSPI_MISO 12

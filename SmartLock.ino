@@ -13,6 +13,8 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <BLEAddress.h>
+#include <BLESecurity.h>
 
 int pictureNumber = 0;
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
@@ -23,6 +25,61 @@ BLECharacteristic *pCharacteristicRFID;
 BLECharacteristic *pCharacteristicCamera;
 
 bool deviceConnected = false;
+bool registerMode = false;
+bool lockRfid = false;
+
+int registerType;
+unsigned long timer = 0;
+
+String user = "";
+void handleRxData(String, String);
+
+void buzzer(int on)
+{
+    digitalWrite(BUZZER, on);
+}
+
+void buzzerN(int n = 2, int t = 200)
+{
+    for (int i = 0; i < n; i++)
+    {
+        digitalWrite(BUZZER, 1);
+        delay(t);
+        digitalWrite(BUZZER, 0);
+        delay(t);
+    }
+}
+
+class MySecurity : public BLESecurityCallbacks {
+  
+  bool onConfirmPIN(uint32_t pin){
+    return false;
+  }
+  
+	uint32_t onPassKeyRequest(){
+        ESP_LOGI(LOG_TAG, "PassKeyRequest");
+		return 123456;
+	}
+
+	void onPassKeyNotify(uint32_t pass_key){
+        ESP_LOGI(LOG_TAG, "On passkey Notify number:%d", pass_key);
+	}
+
+	bool onSecurityRequest(){
+	    ESP_LOGI(LOG_TAG, "On Security Request");
+		return true;
+	}
+
+	void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl){
+		ESP_LOGI(LOG_TAG, "Starting BLE work!");
+		if(cmpl.success){
+			uint16_t length;
+			esp_ble_gap_get_whitelist_size(&length);
+			ESP_LOGD(LOG_TAG, "size: %d", length);
+		}
+	}
+};
+
 
 class MyServerCallbacks : public BLEServerCallbacks
 {
@@ -45,6 +102,19 @@ class MyCallbacks : public BLECharacteristicCallbacks
 
         if (rxValue.length() > 0)
         {
+
+            String registerValue = String(rxValue.c_str());
+            String type = registerValue.substring(0, registerValue.indexOf(";"));
+            String attr = registerValue.substring(registerValue.indexOf(";") + 1, registerValue.length());
+
+            DEBUG.print("Received Value: ");
+            DEBUG.println(registerValue);
+            DEBUG.print("Type: ");
+            DEBUG.println(type);
+            DEBUG.print("Attr: ");
+            DEBUG.println(attr);
+
+            handleRxData(type, attr);
         }
     }
 };
@@ -53,6 +123,10 @@ void BLEinit()
 {
     BLEDevice::init("ESP32"); // Give it a name
     BLEDevice::setMTU(1024);
+
+    // //std::string clientAddress = "B8:27:EB:04:40:A7";
+    // BLEDevice::whiteListAdd(BLEAddress("B8:27:EB:04:40:A7"));
+
     // Create the BLE Server
     BLEServer *pServer = BLEDevice::createServer();
     pServer->setCallbacks(new MyServerCallbacks());
@@ -64,32 +138,77 @@ void BLEinit()
     pCharacteristicFingerprint = pService->createCharacteristic(
         CHARACTERISTIC_UUID_TX_FINGERPRINT,
         BLECharacteristic::PROPERTY_NOTIFY |
+            BLECharacteristic::PROPERTY_WRITE_NR |
             BLECharacteristic::PROPERTY_READ);
     pCharacteristicFingerprint->addDescriptor(new BLE2902());
 
     pCharacteristicRFID = pService->createCharacteristic(
         CHARACTERISTIC_UUID_TX_RFID,
         BLECharacteristic::PROPERTY_NOTIFY |
+            BLECharacteristic::PROPERTY_WRITE_NR |
             BLECharacteristic::PROPERTY_READ);
     pCharacteristicRFID->addDescriptor(new BLE2902());
 
     pCharacteristicCamera = pService->createCharacteristic(
         CHARACTERISTIC_UUID_TX_CAMERA,
         BLECharacteristic::PROPERTY_NOTIFY |
+            BLECharacteristic::PROPERTY_WRITE_NR |
             BLECharacteristic::PROPERTY_READ);
     pCharacteristicCamera->addDescriptor(new BLE2902());
 
     BLECharacteristic *pCharacteristic = pService->createCharacteristic(
         CHARACTERISTIC_UUID_RX,
-        BLECharacteristic::PROPERTY_WRITE);
+        BLECharacteristic::PROPERTY_WRITE_NR);
 
     pCharacteristic->setCallbacks(new MyCallbacks());
 
-    // Start the service
-    pService->start();
+    pCharacteristicRFID->setValue("RFID");
+    pCharacteristicCamera->setValue("CAMERA");
+    pCharacteristicFingerprint->setValue("FINGERPRINT");
 
-    // Start advertising
-    pServer->getAdvertising()->start();
+    pService->start();
+    // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
+    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(SERVICE_UUID);
+    pAdvertising->setScanResponse(true);
+    pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
+    pAdvertising->setMinPreferred(0x12);
+    // pAdvertising->setScanFilter(true, true);
+    BLEDevice::startAdvertising();
+}
+
+void handleRxData(String type, String attr)
+{
+    if (type == "0")
+    {
+        if (attr.toInt() == 0)
+        {
+            buzzerN(2);
+        }
+        if (attr.toInt() == 1)
+        {
+            buzzerN(1);
+        }
+        if (attr.toInt() == 2)
+        {
+            registerMode = false;
+            buzzerN(3, 100);
+        }
+    }
+    if (type == "1")
+    {
+        buzzerN(1);
+        registerMode = true;
+        registerType = 1;
+        user = attr;
+    }
+    if (type == "2")
+    {
+        buzzerN(1);
+        registerMode = true;
+        registerType = 2;
+        user = attr;
+    }
 }
 
 void cameraInit()
@@ -116,11 +235,10 @@ void cameraInit()
     config.xclk_freq_hz = 20000000;
     config.pixel_format = PIXFORMAT_JPEG;
 
-    config.frame_size = FRAMESIZE_QQVGA;
+    config.frame_size = FRAMESIZE_VGA;
     config.jpeg_quality = 12;
     config.fb_count = 1;
 
-    // Init Camera
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK)
     {
@@ -134,7 +252,7 @@ void cameraSetting()
 {
     sensor_t *s = esp_camera_sensor_get();
 
-    s->set_brightness(s, 0);                 // -2 to 2
+    s->set_brightness(s, 2);                 // -2 to 2
     s->set_contrast(s, 0);                   // -2 to 2
     s->set_saturation(s, 0);                 // -2 to 2
     s->set_special_effect(s, 0);             // 0 to 6 (0 – No Effect, 1 – Negative, 2 – Grayscale, 3 – Red Tint, 4 – Green Tint, 5 – Blue Tint, 6 – Sepia)
@@ -222,6 +340,7 @@ void setup()
     BLEinit();
     pinMode(BUTTON, INPUT_PULLUP);
     pinMode(FLASH, OUTPUT);
+    pinMode(BUZZER, OUTPUT);
     DEBUG.begin(115200, SERIAL_8N1, -1, 33);
     DEBUG.println();
     cameraInit();
@@ -235,10 +354,45 @@ void loop()
 {
     String rfid = getRFID();
     int fingerId = getFingerprintIDez();
-
-    if (rfid != "")
+    if (millis() - timer > 2000)
     {
-        rfid = String("{RFID: \"" + rfid + "\"}");
+        timer = millis();
+        lockRfid = false;
+    }
+
+    if (registerMode && registerType == 1)
+    {
+        DEBUG.print("Add Finger ");
+        if (finger.getTemplateCount() == FINGERPRINT_OK)
+        {
+            int newFinger = finger.templateCount + 2;
+            DEBUG.println(newFinger);
+            if (getFingerprintEnroll(newFinger))
+            {
+                String txValue = String("{\"FINGER\": " + String(newFinger) + ", \"USER\": " + user + " }");
+                DEBUG.print("Reg FINGER: ");
+                DEBUG.println(txValue);
+                pCharacteristicRFID->setValue(txValue.c_str());
+                pCharacteristicRFID->notify();
+                registerMode = false;
+            }
+        };
+    }
+
+    if (rfid != "" && !lockRfid)
+    {
+        buzzerN(1);
+        lockRfid = true;
+        if (registerMode && registerType == 2)
+        {
+            DEBUG.println("Add RFID");
+            rfid = String("{\"RFID\": \"" + rfid + "\", \"USER\": " + user + " }");
+            registerMode = false;
+        }
+        else
+        {
+            rfid = String("{\"RFID\": \"" + rfid + "\"}");
+        }
         DEBUG.print("RFID: ");
         DEBUG.println(rfid);
         pCharacteristicRFID->setValue(rfid.c_str());
@@ -248,9 +402,10 @@ void loop()
     if (fingerId != -1)
     {
         String fingerIdStr = String(fingerId);
-        fingerIdStr = String("{FINGER: \"" + fingerIdStr + "\"}");
+        fingerIdStr = String("{\"FINGER\": \"" + fingerIdStr + "\"}");
         DEBUG.print("FINGER: ");
         DEBUG.println(fingerIdStr);
+        buzzerN(1);
         pCharacteristicFingerprint->setValue(fingerIdStr.c_str());
         pCharacteristicFingerprint->notify();
     }
@@ -260,16 +415,24 @@ void loop()
         String imgBase64 = capture();
         int i = 0;
         int id = random(1000, 10000);
-        // imgBase64 = String("{CAMERA: \"" + imgBase64 + "\"}");
         DEBUG.println(imgBase64);
-        
+        buzzerN(1);
         while (imgBase64.length() > 0)
         {
-            String img32 = imgBase64.substring(0, 400);
-            imgBase64.remove(0, 400);
-            
-            img32 = String("{CAMERA: \"" + img32 + "\", SEQ: " + i++ + ", ID: " + id + "}");
-            DEBUG.println(img32);
+            String img32 = imgBase64.substring(0, 350);
+            bool end;
+
+            imgBase64.remove(0, 350);
+            if (imgBase64.length() > 0)
+            {
+                end = false;
+            }
+            else
+            {
+                end = true;
+            }
+            img32 = String("{\"CAMERA\": \"" + img32 + "\", \"SEQ\": " + i++ + ", \"ID\": " + id + ", \"END\":" + end + "}");
+            // DEBUG.println(img32);
             pCharacteristicCamera->setValue(img32.c_str());
             pCharacteristicCamera->notify();
         }
@@ -278,7 +441,6 @@ void loop()
 
 String capture()
 {
-    flash();
     camera_fb_t *fb = NULL;
     fb = esp_camera_fb_get();
     if (!fb)
@@ -417,7 +579,7 @@ int getFingerprintIDez()
     return finger.fingerID;
 }
 
-uint8_t getFingerprintEnroll(uint8_t id)
+bool getFingerprintEnroll(uint8_t id)
 {
 
     int p = -1;
@@ -426,6 +588,10 @@ uint8_t getFingerprintEnroll(uint8_t id)
     while (p != FINGERPRINT_OK)
     {
         p = finger.getImage();
+        if (!registerMode)
+        {
+            return false;
+        }
         switch (p)
         {
         case FINGERPRINT_OK:
@@ -472,11 +638,16 @@ uint8_t getFingerprintEnroll(uint8_t id)
     }
 
     DEBUG.println("Remove finger");
+    buzzerN(1);
     delay(2000);
     p = 0;
     while (p != FINGERPRINT_NOFINGER)
     {
         p = finger.getImage();
+        if (!registerMode)
+        {
+            return false;
+        }
     }
     DEBUG.print("ID ");
     DEBUG.println(id);
@@ -484,6 +655,10 @@ uint8_t getFingerprintEnroll(uint8_t id)
     DEBUG.println("Place same finger again");
     while (p != FINGERPRINT_OK)
     {
+        if (!registerMode)
+        {
+            return false;
+        }
         p = finger.getImage();
         switch (p)
         {
@@ -492,6 +667,7 @@ uint8_t getFingerprintEnroll(uint8_t id)
             break;
         case FINGERPRINT_NOFINGER:
             DEBUG.print(".");
+
             break;
         case FINGERPRINT_PACKETRECIEVEERR:
             DEBUG.println("Communication error");
@@ -515,19 +691,19 @@ uint8_t getFingerprintEnroll(uint8_t id)
         break;
     case FINGERPRINT_IMAGEMESS:
         DEBUG.println("Image too messy");
-        return p;
+        return false;
     case FINGERPRINT_PACKETRECIEVEERR:
         DEBUG.println("Communication error");
-        return p;
+        return false;
     case FINGERPRINT_FEATUREFAIL:
         DEBUG.println("Could not find fingerprint features");
-        return p;
+        return false;
     case FINGERPRINT_INVALIDIMAGE:
         DEBUG.println("Could not find fingerprint features");
-        return p;
+        return false;
     default:
         DEBUG.println("Unknown error");
-        return p;
+        return false;
     }
 
     // OK converted!
@@ -542,17 +718,17 @@ uint8_t getFingerprintEnroll(uint8_t id)
     else if (p == FINGERPRINT_PACKETRECIEVEERR)
     {
         DEBUG.println("Communication error");
-        return p;
+        return false;
     }
     else if (p == FINGERPRINT_ENROLLMISMATCH)
     {
         DEBUG.println("Fingerprints did not match");
-        return p;
+        return false;
     }
     else
     {
         DEBUG.println("Unknown error");
-        return p;
+        return false;
     }
 
     DEBUG.print("ID ");
@@ -565,23 +741,24 @@ uint8_t getFingerprintEnroll(uint8_t id)
     else if (p == FINGERPRINT_PACKETRECIEVEERR)
     {
         DEBUG.println("Communication error");
-        return p;
+        return false;
     }
     else if (p == FINGERPRINT_BADLOCATION)
     {
         DEBUG.println("Could not store in that location");
-        return p;
+        return false;
     }
     else if (p == FINGERPRINT_FLASHERR)
     {
         DEBUG.println("Error writing to flash");
-        return p;
+        return false;
     }
     else
     {
         DEBUG.println("Unknown error");
-        return p;
+        return false;
     }
 
+    buzzerN(2);
     return true;
 }
